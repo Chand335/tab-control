@@ -1,15 +1,15 @@
 // Create buttons container
 const buttonContainer = document.createElement("div")
 buttonContainer.style.position = "fixed"
-buttonContainer.style.top = "20px"
-buttonContainer.style.right = "20px"
+buttonContainer.style.top = "10px"
+buttonContainer.style.right = "10px"
 buttonContainer.style.zIndex = "9999"
 buttonContainer.style.display = "flex"
 buttonContainer.style.gap = "10px"
 
 // Create Close button
 const closeBtn = document.createElement("button")
-closeBtn.textContent = "Close Tab"
+closeBtn.textContent = "Close"
 closeBtn.style.padding = "10px 15px"
 closeBtn.style.background = "#ff4444"
 closeBtn.style.color = "white"
