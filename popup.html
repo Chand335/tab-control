@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body {
+      width: 200px;
+      padding: 10px;
+    }
+    .button {
+      display: inline-block;
+      width: 100%;
+      padding: 10px;
+      margin: 5px 0;
+      text-align: center;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .refresh {
+      background-color: #4CAF50;
+    }
+    .close {
+      background-color: #f44336;
+    }
+    .button:hover {
+      opacity: 0.8;
+    }
+  </style>
+</head>
+<body>
+  <button class="button refresh" id="refreshBtn">Refresh Page</button>
+  <button class="button close" id="closeBtn">Close Tab</button>
+  <script src="popup.js"></script>
+</body>
+</html>

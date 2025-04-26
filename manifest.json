@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3,
+  "name": "Tab Control",
+  "version": "1.0",
+  "description": "Close and refresh tabs quickly",
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "permissions": ["tabs", "scripting"]
+}
