@@ -1,10 +1,17 @@
 {
   "manifest_version": 3,
-  "name": "Tab Control",
+  "name": "Page Control",
   "version": "1.0",
-  "description": "Close and refresh tabs quickly",
-  "action": {
-    "default_popup": "popup.html"
-  },
-  "permissions": ["tabs", "scripting"]
+  "description": "Adds control buttons to every page",
+  "permissions": ["tabs", "scripting"],
+  "host_permissions": ["<all_urls>"],
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"]
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  }
 }
