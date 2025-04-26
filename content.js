@@ -1,7 +1,7 @@
 // Create buttons container
 const buttonContainer = document.createElement("div")
 buttonContainer.style.position = "fixed"
-buttonContainer.style.bottom = "20px"
+buttonContainer.style.top = "20px"
 buttonContainer.style.right = "20px"
 buttonContainer.style.zIndex = "9999"
 buttonContainer.style.display = "flex"
