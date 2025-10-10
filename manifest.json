@@ -5,10 +5,24 @@
   "description": "Adds control buttons to every page and AI-powered insights.",
   "permissions": ["tabs", "scripting", "storage", "clipboardWrite"],
   "host_permissions": ["<all_urls>", "https://api.openai.com/*"],
+
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["content.js"]
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content.js"
+      ]
+    },
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "scraper.js"
+      ],
+      "run_at": "document_idle"
     }
   ],
   "background": {
