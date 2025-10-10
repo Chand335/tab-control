@@ -3,12 +3,31 @@
   "name": "Page Control",
   "version": "1.0",
   "description": "Adds control buttons to every page",
-  "permissions": ["tabs", "scripting"],
-  "host_permissions": ["<all_urls>"],
+  "permissions": [
+    "tabs",
+    "scripting",
+    "storage"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["content.js"]
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content.js"
+      ]
+    },
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "scraper.js"
+      ],
+      "run_at": "document_idle"
     }
   ],
   "background": {
