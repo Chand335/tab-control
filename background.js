@@ -1,13 +1,181 @@
+const aiCache = new Map()
+
+function buildCacheKey(text, model) {
+  let hash = 0
+  for (let i = 0; i < text.length; i++) {
+    hash = (hash << 5) - hash + text.charCodeAt(i)
+    hash |= 0
+  }
+  return `${model}:${hash}`
+}
+
+async function loadSettings() {
+  return new Promise((resolve) => {
+    chrome.storage.local.get(["aiApiKey", "aiModel"], (items) => {
+      resolve(items)
+    })
+  })
+}
+
+async function callOpenAI({ apiKey, model, text, port, cacheKey }) {
+  const url = "https://api.openai.com/v1/chat/completions"
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model,
+      stream: true,
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are an assistant that summarizes web pages into structured JSON with sections for keyPoints, actions, and data.",
+        },
+        {
+          role: "user",
+          content: text,
+        },
+      ],
+    }),
+  })
+
+  if (!response.ok || !response.body) {
+    const errorText = await response.text()
+    throw new Error(
+      `Request failed with status ${response.status}: ${errorText || "Unknown error"}`
+    )
+  }
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder("utf-8")
+  let buffer = ""
+  let aggregated = ""
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+
+    const lines = buffer.split("\n")
+    buffer = lines.pop() || ""
+
+    for (const line of lines) {
+      const trimmed = line.trim()
+      if (!trimmed) continue
+      if (trimmed === "data: [DONE]") {
+        port.postMessage({ type: "complete", full: aggregated })
+        aiCache.set(cacheKey, aggregated)
+        return aggregated
+      }
+      if (!trimmed.startsWith("data:")) continue
+      try {
+        const payload = JSON.parse(trimmed.replace(/^data: /, ""))
+        const delta = payload?.choices?.[0]?.delta?.content
+        if (delta) {
+          aggregated += delta
+          port.postMessage({ type: "chunk", delta, full: aggregated })
+        }
+      } catch (error) {
+        console.error("Failed to parse chunk", error)
+      }
+    }
+  }
+
+  if (buffer.trim().length > 0) {
+    const trimmed = buffer.trim()
+    if (trimmed === "data: [DONE]") {
+      port.postMessage({ type: "complete", full: aggregated })
+      aiCache.set(cacheKey, aggregated)
+      return aggregated
+    }
+    if (trimmed.startsWith("data:")) {
+      try {
+        const payload = JSON.parse(trimmed.replace(/^data: /, ""))
+        const delta = payload?.choices?.[0]?.delta?.content
+        if (delta) {
+          aggregated += delta
+        }
+      } catch (error) {
+        console.error("Failed to parse trailing chunk", error)
+      }
+    }
+  }
+
+  port.postMessage({ type: "complete", full: aggregated })
+  aiCache.set(cacheKey, aggregated)
+  return aggregated
+}
+
+async function handleAnalysisRequest({ text, port }) {
+  const { aiApiKey, aiModel } = await loadSettings()
+  if (!aiApiKey) {
+    port.postMessage({
+      type: "error",
+      message:
+        "No API key found. Please add one via the extension options page before requesting AI analysis.",
+    })
+    return
+  }
+
+  const model = aiModel || "gpt-4o-mini"
+  const cacheKey = buildCacheKey(text, model)
+  if (aiCache.has(cacheKey)) {
+    const cached = aiCache.get(cacheKey)
+    port.postMessage({ type: "cached", full: cached })
+    port.postMessage({ type: "complete", full: cached })
+    return cached
+  }
+
+  try {
+    await callOpenAI({ apiKey: aiApiKey, model, text, port, cacheKey })
+  } catch (error) {
+    console.error(error)
+    port.postMessage({ type: "error", message: error.message })
+  }
+}
+
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name === "ai-analysis") {
+    port.onMessage.addListener((message) => {
+      if (message.type === "analyze") {
+        handleAnalysisRequest({ text: message.text, port })
+      }
+    })
+  }
+})
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === "closeTab") {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       chrome.tabs.remove(tabs[0].id)
     })
   }
-
   if (message.action === "refreshTab") {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       chrome.tabs.reload(tabs[0].id)
     })
+  }
+  if (message.action === "scrapePageText") {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (!tabs || tabs.length === 0) {
+        sendResponse({ error: "No active tab found" })
+        return
+      }
+      chrome.tabs.sendMessage(
+        tabs[0].id,
+        { action: "collectPageText" },
+        (response) => {
+          if (chrome.runtime.lastError) {
+            sendResponse({ error: chrome.runtime.lastError.message })
+            return
+          }
+          sendResponse(response)
+        }
+      )
+    })
+    return true
   }
 })

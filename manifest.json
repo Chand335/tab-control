@@ -1,10 +1,10 @@
 {
   "manifest_version": 3,
   "name": "Page Control",
-  "version": "1.0",
-  "description": "Adds control buttons to every page",
-  "permissions": ["tabs", "scripting"],
-  "host_permissions": ["<all_urls>"],
+  "version": "1.1",
+  "description": "Adds control buttons to every page and AI-powered insights.",
+  "permissions": ["tabs", "scripting", "storage", "clipboardWrite"],
+  "host_permissions": ["<all_urls>", "https://api.openai.com/*"],
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
@@ -13,5 +13,10 @@
   ],
   "background": {
     "service_worker": "background.js"
+  },
+  "options_page": "options.html",
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Page Control"
   }
 }

@@ -49,3 +49,14 @@ refreshBtn.addEventListener("click", () => {
 buttonContainer.appendChild(refreshBtn)
 buttonContainer.appendChild(closeBtn)
 document.body.appendChild(buttonContainer)
+
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === "collectPageText") {
+    const title = document.title || ""
+    const bodyText = document.body?.innerText || ""
+    sendResponse({
+      title,
+      text: `${title}\n\n${bodyText}`.trim(),
+    })
+  }
+})

@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>AI Settings</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 20px;
+        max-width: 420px;
+      }
+      label {
+        display: block;
+        margin-bottom: 6px;
+        font-weight: bold;
+      }
+      input,
+      select,
+      textarea {
+        width: 100%;
+        padding: 8px;
+        margin-bottom: 16px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        font-size: 14px;
+      }
+      button {
+        padding: 10px 16px;
+        border: none;
+        border-radius: 4px;
+        background-color: #4caf50;
+        color: #fff;
+        cursor: pointer;
+        font-size: 14px;
+      }
+      .status {
+        margin-top: 10px;
+        font-size: 13px;
+        color: #2e7d32;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>AI Configuration</h1>
+    <p>
+      Store your API key securely. It is saved only in your browser profile via
+      <code>chrome.storage.local</code> and is never committed to source control.
+    </p>
+    <label for="apiKey">API Key</label>
+    <input type="password" id="apiKey" placeholder="sk-..." autocomplete="off" />
+
+    <label for="model">Model</label>
+    <select id="model">
+      <option value="gpt-4o-mini">gpt-4o-mini</option>
+      <option value="gpt-4o">gpt-4o</option>
+      <option value="gpt-3.5-turbo">gpt-3.5-turbo</option>
+    </select>
+
+    <label for="customModel">Or specify a custom model</label>
+    <input type="text" id="customModel" placeholder="Custom model ID" />
+
+    <button id="save">Save Settings</button>
+    <div class="status" id="status" role="status"></div>
+
+    <script src="options.js"></script>
+  </body>
+</html>
