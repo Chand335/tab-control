@@ -17,7 +17,7 @@ async function loadSettings() {
   })
 }
 
-async function callOpenAI({ apiKey, model, text, port, cacheKey }) {
+async function callOpenAI({ apiKey, model, text, port, cacheKey, controller }) {
   const url = "https://api.openai.com/v1/chat/completions"
   const response = await fetch(url, {
     method: "POST",
@@ -25,6 +25,7 @@ async function callOpenAI({ apiKey, model, text, port, cacheKey }) {
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
     },
+    signal: controller.signal,
     body: JSON.stringify({
       model,
       stream: true,
@@ -109,7 +110,19 @@ async function callOpenAI({ apiKey, model, text, port, cacheKey }) {
   return aggregated
 }
 
-async function handleAnalysisRequest({ text, port }) {
+const portControllers = new WeakMap()
+
+function abortControllerForPort(port) {
+  const controller = portControllers.get(port)
+  if (controller) {
+    controller.abort()
+    portControllers.delete(port)
+    return true
+  }
+  return false
+}
+
+async function handleAnalysisRequest({ text, port, controller }) {
   const { aiApiKey, aiModel } = await loadSettings()
   if (!aiApiKey) {
     port.postMessage({
@@ -117,6 +130,9 @@ async function handleAnalysisRequest({ text, port }) {
       message:
         "No API key found. Please add one via the extension options page before requesting AI analysis.",
     })
+    if (portControllers.get(port) === controller) {
+      portControllers.delete(port)
+    }
     return
   }
 
@@ -126,14 +142,40 @@ async function handleAnalysisRequest({ text, port }) {
     const cached = aiCache.get(cacheKey)
     port.postMessage({ type: "cached", full: cached })
     port.postMessage({ type: "complete", full: cached })
+    if (portControllers.get(port) === controller) {
+      portControllers.delete(port)
+    }
     return cached
   }
 
+  if (controller.signal.aborted) {
+    port.postMessage({ type: "cancelled" })
+    if (portControllers.get(port) === controller) {
+      portControllers.delete(port)
+    }
+    return
+  }
+
   try {
-    await callOpenAI({ apiKey: aiApiKey, model, text, port, cacheKey })
+    await callOpenAI({
+      apiKey: aiApiKey,
+      model,
+      text,
+      port,
+      cacheKey,
+      controller,
+    })
   } catch (error) {
-    console.error(error)
-    port.postMessage({ type: "error", message: error.message })
+    if (error.name === "AbortError" || error?.message?.includes("aborted")) {
+      port.postMessage({ type: "cancelled" })
+    } else {
+      console.error(error)
+      port.postMessage({ type: "error", message: error.message })
+    }
+  } finally {
+    if (portControllers.get(port) === controller) {
+      portControllers.delete(port)
+    }
   }
 }
 
@@ -141,8 +183,25 @@ chrome.runtime.onConnect.addListener((port) => {
   if (port.name === "ai-analysis") {
     port.onMessage.addListener((message) => {
       if (message.type === "analyze") {
-        handleAnalysisRequest({ text: message.text, port })
+        abortControllerForPort(port)
+        const controller = new AbortController()
+        portControllers.set(port, controller)
+        handleAnalysisRequest({ text: message.text, port, controller }).catch(
+          (error) => {
+            console.error(error)
+            port.postMessage({ type: "error", message: error.message })
+          }
+        )
       }
+      if (message.type === "cancel") {
+        const aborted = abortControllerForPort(port)
+        if (!aborted) {
+          port.postMessage({ type: "cancelled" })
+        }
+      }
+    })
+    port.onDisconnect.addListener(() => {
+      abortControllerForPort(port)
     })
   }
 })
