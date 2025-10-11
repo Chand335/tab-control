@@ -46,6 +46,11 @@
       Store your API key securely. It is saved only in your browser profile via
       <code>chrome.storage.local</code> and is never committed to source control.
     </p>
+    <p>
+      Configure how long scraped history should be kept and how many entries are
+      stored. Older items and anything beyond the maximum will be pruned
+      automatically.
+    </p>
     <label for="apiKey">API Key</label>
     <input type="password" id="apiKey" placeholder="sk-..." autocomplete="off" />
 
@@ -58,6 +63,26 @@
 
     <label for="customModel">Or specify a custom model</label>
     <input type="text" id="customModel" placeholder="Custom model ID" />
+
+    <label for="scrapeRetentionDays">Retention days</label>
+    <input
+      type="number"
+      id="scrapeRetentionDays"
+      min="1"
+      step="1"
+      inputmode="numeric"
+      value="30"
+    />
+
+    <label for="scrapeMaxEntries">Maximum saved entries</label>
+    <input
+      type="number"
+      id="scrapeMaxEntries"
+      min="1"
+      step="1"
+      inputmode="numeric"
+      value="200"
+    />
 
     <button id="save">Save Settings</button>
     <div class="status" id="status" role="status"></div>
