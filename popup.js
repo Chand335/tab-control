@@ -6,10 +6,22 @@ const exportBtn = document.getElementById("exportBtn")
 
 const port = chrome.runtime.connect({ name: "ai-analysis" })
 let latestResult = ""
+let isAnalyzing = false
+let isCancelling = false
 
 function setStatus(message, isError = false) {
   statusEl.textContent = message
   statusEl.style.color = isError ? "#d32f2f" : "#555"
+}
+
+function cancelActiveRequest() {
+  if (!isAnalyzing || isCancelling) {
+    return
+  }
+  isCancelling = true
+  setStatus("Cancelling...")
+  analyzeBtn.disabled = true
+  port.postMessage({ type: "cancel" })
 }
 
 function getStructuredData() {
@@ -42,21 +54,37 @@ port.onMessage.addListener((message) => {
       outputEl.value = message.full
       latestResult = message.full
       setStatus("Streaming response...")
+      isAnalyzing = true
+      isCancelling = false
+      analyzeBtn.disabled = false
       break
     case "complete":
       outputEl.value = message.full
       latestResult = message.full
       setStatus("Analysis complete")
+      isAnalyzing = false
+      isCancelling = false
       analyzeBtn.disabled = false
       break
     case "cached":
       outputEl.value = message.full
       latestResult = message.full
       setStatus("Loaded from cache")
+      isAnalyzing = false
+      isCancelling = false
+      analyzeBtn.disabled = false
       break
     case "error":
       setStatus(message.message || "AI request failed", true)
+      isAnalyzing = false
+      isCancelling = false
       analyzeBtn.disabled = false
+      break
+    case "cancelled":
+      isAnalyzing = false
+      isCancelling = false
+      analyzeBtn.disabled = false
+      setStatus("")
       break
     default:
       break
@@ -64,6 +92,8 @@ port.onMessage.addListener((message) => {
 })
 
 port.onDisconnect.addListener(() => {
+  isAnalyzing = false
+  isCancelling = false
   analyzeBtn.disabled = false
   setStatus("Connection to background lost", true)
 })
@@ -81,21 +111,36 @@ document.getElementById("refreshBtn").addEventListener("click", () => {
 })
 
 analyzeBtn.addEventListener("click", () => {
+  if (isCancelling) {
+    return
+  }
+
+  if (isAnalyzing) {
+    cancelActiveRequest()
+    return
+  }
+
   analyzeBtn.disabled = true
   setStatus("Collecting page text...")
   outputEl.value = ""
   latestResult = ""
+  isAnalyzing = true
+  isCancelling = false
 
   chrome.runtime.sendMessage({ action: "scrapePageText" }, (response) => {
     if (chrome.runtime.lastError) {
       setStatus(chrome.runtime.lastError.message, true)
       analyzeBtn.disabled = false
+      isAnalyzing = false
+      isCancelling = false
       return
     }
 
     if (response?.error) {
       setStatus(response.error, true)
       analyzeBtn.disabled = false
+      isAnalyzing = false
+      isCancelling = false
       return
     }
 
@@ -103,12 +148,23 @@ analyzeBtn.addEventListener("click", () => {
     if (!text) {
       setStatus("Unable to collect page text", true)
       analyzeBtn.disabled = false
+      isAnalyzing = false
+      isCancelling = false
       return
     }
 
     setStatus("Sending to AI...")
     port.postMessage({ type: "analyze", text })
+    analyzeBtn.disabled = false
   })
+})
+
+window.addEventListener("beforeunload", () => {
+  cancelActiveRequest()
+})
+
+window.addEventListener("pagehide", () => {
+  cancelActiveRequest()
 })
 
 copyBtn.addEventListener("click", async () => {
