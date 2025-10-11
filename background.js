@@ -207,13 +207,83 @@ chrome.runtime.onConnect.addListener((port) => {
 })
 
 const STORAGE_KEY = "scrapedPages"
+const DEFAULT_RETENTION_DAYS = 30 // keep scraped history for roughly a month by default
+const DEFAULT_MAX_SCRAPED_ENTRIES = 200 // prevent the list from growing without bound
+
+function normalizeRetentionSettings({ scrapeRetentionDays, scrapeMaxEntries } = {}) {
+  const parsedRetention = parseInt(scrapeRetentionDays, 10)
+  const parsedMaxEntries = parseInt(scrapeMaxEntries, 10)
+  const retentionDays =
+    Number.isFinite(parsedRetention) && parsedRetention > 0
+      ? parsedRetention
+      : DEFAULT_RETENTION_DAYS
+  const maxEntries =
+    Number.isFinite(parsedMaxEntries) && parsedMaxEntries > 0
+      ? parsedMaxEntries
+      : DEFAULT_MAX_SCRAPED_ENTRIES
+
+  return { retentionDays, maxEntries }
+}
+
+function cleanupScrapedEntries(
+  entries = [],
+  { retentionDays, maxEntries } = {
+    retentionDays: DEFAULT_RETENTION_DAYS,
+    maxEntries: DEFAULT_MAX_SCRAPED_ENTRIES,
+  }
+) {
+  if (!Array.isArray(entries) || entries.length === 0) {
+    return []
+  }
+
+  const safeRetentionDays =
+    Number.isFinite(retentionDays) && retentionDays > 0
+      ? retentionDays
+      : DEFAULT_RETENTION_DAYS
+  const safeMaxEntries =
+    Number.isFinite(maxEntries) && maxEntries > 0
+      ? maxEntries
+      : DEFAULT_MAX_SCRAPED_ENTRIES
+
+  const retentionMs = safeRetentionDays * 24 * 60 * 60 * 1000
+  const now = Date.now()
+
+  const filtered = entries.filter((entry) => {
+    if (!entry || !entry.receivedAt) {
+      return true
+    }
+    const receivedAtMs = Date.parse(entry.receivedAt)
+    if (Number.isNaN(receivedAtMs)) {
+      return true
+    }
+    return now - receivedAtMs <= retentionMs
+  })
+
+  if (filtered.length <= safeMaxEntries) {
+    return filtered
+  }
+
+  return filtered.slice(-safeMaxEntries)
+}
 
 const appendScrapedData = (entry, callback = () => {}) => {
-  chrome.storage.local.get([STORAGE_KEY], (result) => {
-    const existingEntries = Array.isArray(result[STORAGE_KEY]) ? result[STORAGE_KEY] : []
-    const updatedEntries = [...existingEntries, entry]
-    chrome.storage.local.set({ [STORAGE_KEY]: updatedEntries }, () => callback(updatedEntries))
-  })
+  chrome.storage.local.get(
+    [STORAGE_KEY, "scrapeRetentionDays", "scrapeMaxEntries"],
+    (result) => {
+      const existingEntries = Array.isArray(result[STORAGE_KEY])
+        ? result[STORAGE_KEY]
+        : []
+      const retentionSettings = normalizeRetentionSettings(result)
+      const updatedEntries = cleanupScrapedEntries(
+        [...existingEntries, entry],
+        retentionSettings
+      )
+
+      chrome.storage.local.set({ [STORAGE_KEY]: updatedEntries }, () =>
+        callback(updatedEntries)
+      )
+    }
+  )
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -246,10 +316,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.action === "getScrapedData") {
-    chrome.storage.local.get([STORAGE_KEY], (result) => {
-      const entries = Array.isArray(result[STORAGE_KEY]) ? result[STORAGE_KEY] : []
-      sendResponse({ status: "ok", data: entries })
-    })
+    chrome.storage.local.get(
+      [STORAGE_KEY, "scrapeRetentionDays", "scrapeMaxEntries"],
+      (result) => {
+        const entries = Array.isArray(result[STORAGE_KEY]) ? result[STORAGE_KEY] : []
+        const retentionSettings = normalizeRetentionSettings(result)
+        const cleanedEntries = cleanupScrapedEntries(entries, retentionSettings)
+
+        if (cleanedEntries.length !== entries.length) {
+          chrome.storage.local.set({ [STORAGE_KEY]: cleanedEntries })
+        }
+
+        sendResponse({ status: "ok", data: cleanedEntries })
+      }
+    )
     return true
   }
 
